@@ -1,0 +1,3 @@
+[submodule "libs/sfPyAuth"]
+	path = libs/sfPyAuth
+	url = https://github.com/tpfirman/sfPyAuth.git
