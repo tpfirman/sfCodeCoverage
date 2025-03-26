@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import requests
+import argparse
 
 # Add the path to the sfPyAuth module
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'libs', 'sfPyAuth', 'src'))
@@ -14,6 +15,10 @@ sfAuth = oAuthController()
 # Test Mode (Syncronous or ASync)
 # testMode : str = "runTestsSynchronous"
 testMode : str = "runTestsAsynchronous"
+
+# Test Class Execution
+# If false, test classes will not be executed. Only coverage will be fetched, based on previous test runs.
+executeTests : bool = False
 
 def __init__(self):
     if sfAuth.accessToken == None:
@@ -258,24 +263,43 @@ def getTotalOrgCoverage():
     
     return responseJson['records'][0]['PercentCovered']
 
-    
+def parse_arguments():
+    """
+    Parses command-line arguments to configure script behavior.
+    """
+    parser = argparse.ArgumentParser(description="Script to fetch and execute Salesforce test classes.")
+    parser.add_argument(
+        "--execute-tests",
+        type=bool,
+        nargs="?",
+        const=True,
+        help="Set to True to execute test classes, False to only fetch coverage. If not provided, uses the default value."
+    )
+    args = parser.parse_args()
+    return args
 
 def main():
     """
     Main function to orchestrate fetching test classes, executing them, and retrieving coverage.
     """
-    testClasses = getTestClasses()
-    if testClasses == None:
-        print("No Test Classes Found")
-        os._exit(1)
-    
-    testRunId : str = executeTestClasses(testClasses)
-    
-    if testRunId == None:
-        print("Error running tests")
-        os._exit(1)
+    global executeTests
+    args = parse_arguments()
+    if args.execute_tests is not None:
+        executeTests = args.execute_tests
+
+    if executeTests:
+        testClasses = getTestClasses()
+        if testClasses is None:
+            print("No Test Classes Found")
+            os._exit(1)
         
-    # waitForTest(testRunId)
+        testRunId : str = executeTestClasses(testClasses)
+        
+        if testRunId is None:
+            print("Error running tests")
+            os._exit(1)
+            
+        # waitForTest(testRunId)
     
     fullCodeCoverage : dict = getCoverage()
     
@@ -286,7 +310,6 @@ def main():
         json.dump(parsedCodeCoverage, f)
         
     print("Pause here for debugging!")    
-    
 
 if __name__ == "__main__":
     main()
