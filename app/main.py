@@ -2,7 +2,6 @@ import sys
 import os
 import json
 import requests
-from simple_salesforce import Salesforce
 
 # Add the path to the sfPyAuth module
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'libs', 'sfPyAuth', 'src'))
