@@ -141,6 +141,74 @@ def getCoverage():
 
     return coverageResults
 
+def parseCodeCoverage(fullCodeCoverage):
+    """
+    Parses the full code coverage results into a dictionary by test class.
+        
+    Returns the coverage results as a dictionary.
+    
+    Dictionary Format:
+    {
+        [
+            {
+            "Name": {
+                "Id": "Class or trigger Id",
+                "type": "class or trigger",
+                "coverage": [
+                    {
+                        "coveredLines": ["Number"],
+                        "uncovered": ["Number"],
+                        "percentage": "Number"
+                    }
+                ]
+            }
+        ]
+    }
+    """
+    parsedCoverage : dict = {}
+    
+    for record in fullCodeCoverage["records"]:
+        name : str = record["ApexClassOrTrigger"]["Name"]
+        recordId : str = record["ApexClassOrTriggerId"]
+        coveredLines : list = record["Coverage"]["coveredLines"]
+        uncoveredLines : list = record["Coverage"]["uncoveredLines"]
+        
+        if len(parsedCoverage) > 0 and parsedCoverage.get(name) != None:
+            existingCoverage : dict = parsedCoverage[name]
+            coveredLines = dedupeLines(existingCoverage["coverage"]["coveredLines"], coveredLines)
+            uncoveredLines = dedupeLines(existingCoverage["coverage"]["uncoveredLines"], uncoveredLines)
+        
+        parsedObject : dict = parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines)
+        
+        parsedCoverage.update(parsedObject) # if this dosent work, we will need seperate put and update lines depending on if we update updating or inserting.
+        
+    return parsedCoverage
+        
+
+def dedupeLines(coveredLines_existing, coveredLines_New):
+    """
+    Dedupes the covered lines between two sets of covered lines.
+    """
+    return list(set(coveredLines_existing + coveredLines_New))
+
+def parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines):
+    """
+    Helper function to parse the code coverage results into a dictionary.
+    """
+    parsed : dict = {
+            name: {
+                "Id": recordId,
+                "type": "class",
+                "coverage": 
+                    {
+                        "coveredLines": coveredLines,
+                        "uncoveredLines": uncoveredLines,
+                        "coveragePercentage": (len(coveredLines) / (len(coveredLines) + len(uncoveredLines))) * 100
+                    }
+            }                        
+        }
+    
+    return parsed
 
 def main():
     """
@@ -159,7 +227,12 @@ def main():
         
     # waitForTest(testRunId)
     
-    getCoverage()
+    fullCodeCoverage : dict = getCoverage()
+    
+    parsedCodeCoverage : dict = parseCodeCoverage(fullCodeCoverage)
+            
+    with open("coverage.json", "w") as f:
+        json.dump(parsedCodeCoverage, f)
         
     print("Pause here for debugging!")
     
