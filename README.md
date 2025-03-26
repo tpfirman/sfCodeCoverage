@@ -69,7 +69,7 @@ This project is a Python-based tool for interacting with Salesforce to fetch Ape
 
 ## To Do
 
-- Have the script wait for the tests to execute.
+- Have the script wait for the tests to execute. Started working on this but put it aside for now.
 
 ## License
 
