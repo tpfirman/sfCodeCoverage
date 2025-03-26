@@ -26,20 +26,20 @@ def __init__(self):
         exit(1)
 
 
-def getTestClasses():
+def getTestClasses() -> dict:
     """
     Fetches all Apex test classes from Salesforce.
     Returns a dictionary of test class names and their details.
     """
-    url = "https://mindful-raccoon-234rlq-dev-ed.trailblaze.my.salesforce.com/services/data/v62.0/queryAll/?q=SELECT+Id,Name,Body+FROM+ApexClass+WHERE+NamespacePrefix=null"
+    url : str = "https://mindful-raccoon-234rlq-dev-ed.trailblaze.my.salesforce.com/services/data/v62.0/queryAll/?q=SELECT+Id,Name,Body+FROM+ApexClass+WHERE+NamespacePrefix=null"
 
-    payload = {}
-    headers = {
+    payload : dict = {}
+    headers : dict = {
     'Authorization': f'Bearer {sfAuth.accessToken}',
     }
 
     response = requests.request("GET", url, headers=headers, data=payload)
-    jsonRespone = response.json()
+    jsonRespone : dict = response.json()
     
     testClasses : dict = {}
     
@@ -48,7 +48,7 @@ def getTestClasses():
             if record["Body"].find("@isTest") == -1:               
                 continue           
 
-            testClass = {
+            testClass : dict = {
                 "Id": record["Id"],
                 "Name": record["Name"]
             }
@@ -60,16 +60,16 @@ def getTestClasses():
     
     return testClasses
 
-def executeTestClasses(testClasses):
+def executeTestClasses(testClasses : dict) -> str:
     """
     Executes the provided test classes in Salesforce.
     Returns the test run ID if successful.
     """
-    url = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/{testMode}"
+    url : str = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/{testMode}"
     
-    payload = parseTestClassesForExecution(testClasses)
+    payload : dict = parseTestClassesForExecution(testClasses)
 
-    headers = {
+    headers : dict = {
         'Authorization': f'Bearer {sfAuth.accessToken}',
         'Content-Type': 'application/json'
     }
@@ -85,7 +85,7 @@ def executeTestClasses(testClasses):
     return testRunId
     
     
-def parseTestClassesForExecution(testClasses):
+def parseTestClassesForExecution(testClasses : dict) -> dict:
     """
     Parses the test classes into the required format for execution.
     Returns the JSON payload as a string.
@@ -98,14 +98,14 @@ def parseTestClassesForExecution(testClasses):
     
     return json.dumps(parsedTestClasses)
 
-def waitForTest(testRunId):
+def waitForTest(testRunId : str):
     """
     Waits for the test execution to complete and fetches the test results. Not sure if we will use this yet.
     """
-    url = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/query/?q=SELECT+Id,ApexClassId,MethodName,Outcome,StackTrace+FROM+ApexTestResult+WHERE+AsyncApexJobId='{testRunId}'"
+    url : str = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/query/?q=SELECT+Id,ApexClassId,MethodName,Outcome,StackTrace+FROM+ApexTestResult+WHERE+AsyncApexJobId='{testRunId}'"
     
-    payload = {}
-    headers = {
+    payload : dict = {}
+    headers : dict = {
         'Authorization': f'Bearer {sfAuth.accessToken}',
     }
     
@@ -115,23 +115,23 @@ def waitForTest(testRunId):
         print(f"Error: {response.text}")
         return
     
-    testResults = response.json()
+    testResults : dict = response.json()
     
     for result in testResults["records"]:
         print(f"Test: {result['ApexClassId']} - {result['MethodName']} - {result['Outcome']}")
     
     return
 
-def getCoverage():
+def getCoverage() -> dict:
     """
     Fetches the code coverage details from Salesforce.
     Returns the coverage results as a JSON object.
     """
-    query :str = "SELECT+Id,ApexClassOrTriggerId,ApexClassOrTrigger.name,TestMethodName,Coverage+FROM+ApexCodeCoverage"
-    url = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/query/?q={query}"
+    query : str = "SELECT+Id,ApexClassOrTriggerId,ApexClassOrTrigger.name,TestMethodName,Coverage+FROM+ApexCodeCoverage"
+    url : str = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/query/?q={query}"
     
-    payload = {}
-    headers = {
+    payload : dict = {}
+    headers : dict = {
         'Authorization': f'Bearer {sfAuth.accessToken}',
     }
     
@@ -141,11 +141,11 @@ def getCoverage():
         print(f"Error: {response.text}")
         return
     
-    coverageResults = response.json()
+    coverageResults : dict = response.json()
 
     return coverageResults
 
-def parseCodeCoverage(fullCodeCoverage):
+def parseCodeCoverage(fullCodeCoverage : dict) -> dict:
     """
     Parses the full code coverage results into a dictionary by test class.
         
@@ -173,7 +173,7 @@ def parseCodeCoverage(fullCodeCoverage):
         
     return parsedCoverage
 
-def parse_type(url):
+def parse_type(url : str) -> str:
     """
     Parses the type of the Apex class or trigger from the URL.
     """
@@ -184,20 +184,20 @@ def parse_type(url):
     else:
         return "Unknown"
 
-def dedupeLines(coveredLines_existing : list, coveredLines_New : list):
+def dedupeLines(coveredLines_existing : list, coveredLines_New : list) -> list:
     """
     Dedupes the covered lines between two sets of covered lines.
     """
     return list(set(coveredLines_existing + coveredLines_New))
 
-def removeCoveredLines(coveredLines :list , uncoveredLines : list):
+def removeCoveredLines(coveredLines :list , uncoveredLines : list) -> list:
     """
     Removes the covered lines from the uncovered lines.
     """
     return list(set(uncoveredLines) - set(coveredLines))
     
 
-def parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines, type):
+def parsedCodeCoverage_dictHelper(name : str, recordId : str, coveredLines : list, uncoveredLines : list, type : str) -> dict:
     """
     Helper function to parse the code coverage results into a dictionary.
     """
@@ -225,7 +225,7 @@ def parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines, 
     
     return parsed
 
-def totalCoverage(parsedCodeCoverage):
+def totalCoverage(parsedCodeCoverage : dict) -> dict:
     """ calculates the total code coverage for all classes """
     
     coveredLines_total : int = 0
@@ -244,7 +244,8 @@ def totalCoverage(parsedCodeCoverage):
     return parsedCodeCoverage    
     
     
-def getTotalOrgCoverage():
+def getTotalOrgCoverage() -> float:
+    """ Fetches the total org coverage from Salesforce """
     query :str = "SELECT+PercentCovered+FROM+ApexOrgWideCoverage"
     url = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/query/?q={query}"
     
@@ -263,7 +264,7 @@ def getTotalOrgCoverage():
     
     return responseJson['records'][0]['PercentCovered']
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     """
     Parses command-line arguments to configure script behavior.
     """
