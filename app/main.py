@@ -123,7 +123,7 @@ def getCoverage():
     Fetches the code coverage details from Salesforce.
     Returns the coverage results as a JSON object.
     """
-    query :str = "SELECT+Id,ApexClassOrTriggerId,ApexClassOrTrigger.name,TestMethodName,Coverage+from+ApexCodeCoverage"
+    query :str = "SELECT+Id,ApexClassOrTriggerId,ApexClassOrTrigger.name,TestMethodName,Coverage+FROM+ApexCodeCoverage"
     url = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/query/?q={query}"
     
     payload = {}
@@ -146,69 +146,120 @@ def parseCodeCoverage(fullCodeCoverage):
     Parses the full code coverage results into a dictionary by test class.
         
     Returns the coverage results as a dictionary.
-    
-    Dictionary Format:
-    {
-        [
-            {
-            "Name": {
-                "Id": "Class or trigger Id",
-                "type": "class or trigger",
-                "coverage": [
-                    {
-                        "coveredLines": ["Number"],
-                        "uncovered": ["Number"],
-                        "percentage": "Number"
-                    }
-                ]
-            }
-        ]
-    }
     """
     parsedCoverage : dict = {}
     
     for record in fullCodeCoverage["records"]:
         name : str = record["ApexClassOrTrigger"]["Name"]
         recordId : str = record["ApexClassOrTriggerId"]
+        type : str = parse_type(record['ApexClassOrTrigger']['attributes']['url'])
         coveredLines : list = record["Coverage"]["coveredLines"]
         uncoveredLines : list = record["Coverage"]["uncoveredLines"]
         
+        
         if len(parsedCoverage) > 0 and parsedCoverage.get(name) != None:
             existingCoverage : dict = parsedCoverage[name]
-            coveredLines = dedupeLines(existingCoverage["coverage"]["coveredLines"], coveredLines)
-            uncoveredLines = dedupeLines(existingCoverage["coverage"]["uncoveredLines"], uncoveredLines)
+            coveredLines = dedupeLines(existingCoverage["coverage"]["coveredLines"]["lines"], coveredLines)
+            uncoveredLines = dedupeLines(existingCoverage["coverage"]["uncoveredLines"]["lines"], uncoveredLines)
+            uncoveredLines = removeCoveredLines(coveredLines, uncoveredLines)
         
-        parsedObject : dict = parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines)
+        parsedObject : dict = parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines, type)
         
         parsedCoverage.update(parsedObject) # if this dosent work, we will need seperate put and update lines depending on if we update updating or inserting.
         
     return parsedCoverage
-        
 
-def dedupeLines(coveredLines_existing, coveredLines_New):
+def parse_type(url):
+    """
+    Parses the type of the Apex class or trigger from the URL.
+    """
+    if url.find("ApexClass") != -1:
+        return "ApexClass"
+    elif url.find("ApexTrigger") != -1:
+        return "ApexTrigger"
+    else:
+        return "Unknown"
+
+def dedupeLines(coveredLines_existing : list, coveredLines_New : list):
     """
     Dedupes the covered lines between two sets of covered lines.
     """
     return list(set(coveredLines_existing + coveredLines_New))
 
-def parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines):
+def removeCoveredLines(coveredLines :list , uncoveredLines : list):
+    """
+    Removes the covered lines from the uncovered lines.
+    """
+    return list(set(uncoveredLines) - set(coveredLines))
+    
+
+def parsedCodeCoverage_dictHelper(name, recordId, coveredLines, uncoveredLines, type):
     """
     Helper function to parse the code coverage results into a dictionary.
     """
+    totalLines : int = len(coveredLines) + len(uncoveredLines)    
+    percentage : float = (len(coveredLines) / totalLines) * 100
     parsed : dict = {
             name: {
                 "Id": recordId,
-                "type": "class",
+                "type": type,
                 "coverage": 
                     {
-                        "coveredLines": coveredLines,
-                        "uncoveredLines": uncoveredLines,
-                        "coveragePercentage": (len(coveredLines) / (len(coveredLines) + len(uncoveredLines))) * 100
+                        "coveredLines": {
+                            "lines" : coveredLines,
+                            "length" : len(coveredLines)
+                        },  
+                        "uncoveredLines": {
+                            "lines" : uncoveredLines,
+                            "length" : len(uncoveredLines)
+                        },
+                        "coveragePercentage": percentage,
+                        "uncoveredPercentage": 100 - percentage
                     }
             }                        
         }
     
     return parsed
+
+def totalCoverage(parsedCodeCoverage):
+    """ calculates the total code coverage for all classes """
+    
+    coveredLines_total : int = 0
+    uncoveredLines_total : int = 0
+    
+    for key in parsedCodeCoverage:
+        coveredLines_total += parsedCodeCoverage[key]["coverage"]["coveredLines"]["length"]
+        uncoveredLines_total += parsedCodeCoverage[key]["coverage"]["uncoveredLines"]["length"]
+    
+    totalLines : int = coveredLines_total + uncoveredLines_total
+    calculatedCoverage_total :float = (coveredLines_total / totalLines) * 100
+    
+    orgCoverage_provided : float = getTotalOrgCoverage()
+    parsedCodeCoverage.update({"TotalCoverage": calculatedCoverage_total, "OrgCoverage": orgCoverage_provided})
+    
+    return parsedCodeCoverage    
+    
+    
+def getTotalOrgCoverage():
+    query :str = "SELECT+PercentCovered+FROM+ApexOrgWideCoverage"
+    url = f"{sfAuth.sf_instanceUrl}/services/data/v62.0/tooling/query/?q={query}"
+    
+    payload = {}
+    headers = {
+        'Authorization': f'Bearer {sfAuth.accessToken}',
+    }
+    
+    response = requests.request("GET", url, headers=headers, data=payload)
+    
+    if response.status_code != 200:
+        print(f"Error: {response.text}")
+        return
+    
+    responseJson = response.json()
+    
+    return responseJson['records'][0]['PercentCovered']
+
+    
 
 def main():
     """
@@ -230,12 +281,12 @@ def main():
     fullCodeCoverage : dict = getCoverage()
     
     parsedCodeCoverage : dict = parseCodeCoverage(fullCodeCoverage)
+    parsedCodeCoverage = totalCoverage(parsedCodeCoverage)
             
     with open("coverage.json", "w") as f:
         json.dump(parsedCodeCoverage, f)
         
-    print("Pause here for debugging!")
-    
+    print("Pause here for debugging!")    
     
 
 if __name__ == "__main__":
